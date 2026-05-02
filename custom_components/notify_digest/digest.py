@@ -158,7 +158,7 @@ class DigestBuffer:
             payload["title"] = str(title)
 
         self._logger.debug("media (%s): → %s.%s", policy, domain, service)
-        await self._hass.services.async_call(domain, service, payload, blocking=False)
+        await self._hass.services.async_call(domain, service, payload, blocking=True)
 
     async def async_flush(self, reason: str = "manual") -> None:
         """Drain the buffer and dispatch a single coalesced message downstream.
@@ -190,7 +190,7 @@ class DigestBuffer:
             service,
         )
         await self._hass.services.async_call(
-            domain, service, service_data, blocking=False
+            domain, service, service_data, blocking=True
         )
 
     @callback
