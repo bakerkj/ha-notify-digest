@@ -1,0 +1,21 @@
+flush:
+  name: Flush Digest
+  description: >-
+    Immediately flush a single digest's pending buffer to its configured
+    downstream target_service, regardless of the window timer. Useful for tests
+    or for forcing delivery before a known quiet period.
+  fields:
+    digest:
+      name: Digest Name
+      description:
+        Name of the digest to flush (matches the `name:` in configuration.yaml).
+      required: true
+      example: door_whatsapp
+      selector:
+        text:
+
+flush_all:
+  name: Flush All Digests
+  description: >-
+    Immediately flush every configured digest. Equivalent to calling `flush` for
+    each digest name. Buffers that are empty are skipped silently.

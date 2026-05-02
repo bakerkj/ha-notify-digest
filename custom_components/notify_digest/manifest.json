@@ -1,0 +1,14 @@
+{
+  "domain": "notify_digest",
+  "name": "Notify Digest",
+  "version": "0.0.1",
+  "config_flow": false,
+  "integration_type": "service",
+  "iot_class": "calculated",
+  "documentation": "https://github.com/bakerkj/ha-notify-digest",
+  "issue_tracker": "https://github.com/bakerkj/ha-notify-digest/issues",
+  "codeowners": ["@bakerkj"],
+  "dependencies": ["notify"],
+  "requirements": [],
+  "homeassistant": "2024.11.0"
+}
