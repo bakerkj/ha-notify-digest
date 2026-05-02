@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <circle cx="128" cy="128" r="128" fill="#059669"/>
+
+  <!-- Message 1 (top, smallest, most transparent) -->
+  <g opacity="0.5">
+    <rect x="74" y="22" width="108" height="28" rx="7" fill="white"/>
+    <circle cx="88" cy="36" r="4" fill="#059669"/>
+    <line x1="100" y1="36" x2="166" y2="36" stroke="#059669" stroke-width="3.5" stroke-linecap="round"/>
+  </g>
+
+  <!-- Message 2 (middle) -->
+  <g opacity="0.78">
+    <rect x="66" y="58" width="124" height="30" rx="7" fill="white"/>
+    <circle cx="80" cy="73" r="4.5" fill="#059669"/>
+    <line x1="93" y1="73" x2="176" y2="73" stroke="#059669" stroke-width="3.5" stroke-linecap="round"/>
+  </g>
+
+  <!-- Message 3 (bottom of stack, fully opaque) -->
+  <g>
+    <rect x="58" y="96" width="140" height="32" rx="8" fill="white"/>
+    <circle cx="74" cy="112" r="5" fill="#059669"/>
+    <line x1="88" y1="112" x2="186" y2="112" stroke="#059669" stroke-width="4" stroke-linecap="round"/>
+  </g>
+
+  <!-- Falling dots: messages being pulled into aggregate -->
+  <g fill="white">
+    <circle cx="128" cy="140" r="3" opacity="0.45"/>
+    <circle cx="128" cy="150" r="3.5" opacity="0.7"/>
+    <circle cx="128" cy="160" r="4" opacity="0.95"/>
+  </g>
+
+  <!-- Aggregate bubble -->
+  <g fill="white">
+    <rect x="48" y="170" width="160" height="58" rx="12"/>
+    <path d="M 110 228 L 118 240 L 130 228 Z"/>
+  </g>
+  <g fill="#059669">
+    <circle cx="68" cy="187" r="3.5"/>
+    <circle cx="68" cy="201" r="3.5"/>
+    <circle cx="68" cy="215" r="3.5"/>
+  </g>
+  <g stroke="#059669" stroke-width="4.5" stroke-linecap="round">
+    <line x1="82" y1="187" x2="186" y2="187"/>
+    <line x1="82" y1="201" x2="172" y2="201"/>
+    <line x1="82" y1="215" x2="156" y2="215"/>
+  </g>
+</svg>
