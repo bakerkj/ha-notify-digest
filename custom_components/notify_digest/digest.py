@@ -74,6 +74,12 @@ class DigestBuffer:
         self._flush_lock = asyncio.Lock()
         self._cancel_window: CALLBACK_TYPE | None = None
         self._cancel_max: CALLBACK_TYPE | None = None
+        # Diagnostic arm-counters (read-only via properties). Each time the
+        # underlying timer is scheduled, the counter increments — so tests can
+        # tell "still armed" from "cancelled and re-armed" without reaching
+        # into private state.
+        self._window_arms = 0
+        self._max_buffer_arms = 0
 
     @property
     def name(self) -> str:
@@ -82,6 +88,24 @@ class DigestBuffer:
     @property
     def pending_count(self) -> int:
         return len(self._pending.messages)
+
+    @property
+    def is_window_armed(self) -> bool:
+        return self._cancel_window is not None
+
+    @property
+    def is_max_buffer_armed(self) -> bool:
+        return self._cancel_max is not None
+
+    @property
+    def window_arms(self) -> int:
+        """Total times the window timer has been scheduled (re-arms increment)."""
+        return self._window_arms
+
+    @property
+    def max_buffer_arms(self) -> int:
+        """Total times the max-buffer timer has been scheduled."""
+        return self._max_buffer_arms
 
     async def async_add(self, message: str, title: str | None = None) -> None:
         """Queue a message for the next flush. Empty/whitespace messages are ignored."""
@@ -168,6 +192,7 @@ class DigestBuffer:
         self._cancel_window = async_call_later(
             self._hass, self._config.window_seconds, self._on_window_elapsed
         )
+        self._window_arms += 1
 
     @callback
     def _arm_max_buffer_timer(self) -> None:
@@ -176,6 +201,7 @@ class DigestBuffer:
         self._cancel_max = async_call_later(
             self._hass, self._config.max_buffer_seconds, self._on_max_elapsed
         )
+        self._max_buffer_arms += 1
 
     @callback
     def _cancel_window_timer(self) -> None:

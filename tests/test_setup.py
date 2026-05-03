@@ -94,6 +94,81 @@ async def test_flush_unknown_digest_is_silent(hass, downstream_calls) -> None:
     assert downstream_calls == []
 
 
+async def test_flush_all_dispatches_every_buffer(hass) -> None:
+    """flush_all should drain every configured digest, not just one."""
+    sink_a: list[dict] = []
+    sink_b: list[dict] = []
+
+    async def _sink_a(call) -> None:
+        sink_a.append(dict(call.data))
+
+    async def _sink_b(call) -> None:
+        sink_b.append(dict(call.data))
+
+    hass.services.async_register("notify", "sink_a", _sink_a)
+    hass.services.async_register("notify", "sink_b", _sink_b)
+
+    cfg = {
+        DOMAIN: {
+            "digests": [
+                {
+                    "name": "a",
+                    "target_service": "notify.sink_a",
+                    "window_seconds": 60,
+                },
+                {
+                    "name": "b",
+                    "target_service": "notify.sink_b",
+                    "window_seconds": 60,
+                },
+            ]
+        }
+    }
+    assert await async_setup_component(hass, DOMAIN, cfg)
+    await hass.async_block_till_done()
+
+    await hass.data[DOMAIN]["a"].async_add("hello A")
+    await hass.data[DOMAIN]["b"].async_add("hello B")
+    assert sink_a == []
+    assert sink_b == []
+
+    await hass.services.async_call(DOMAIN, SERVICE_FLUSH_ALL, {}, blocking=True)
+    await hass.async_block_till_done()
+
+    assert len(sink_a) == 1
+    assert sink_a[0]["message"] == "hello A"
+    assert len(sink_b) == 1
+    assert sink_b[0]["message"] == "hello B"
+
+
+async def test_shutdown_event_flushes_pending(hass, downstream_calls) -> None:
+    """The homeassistant_stop listener flushes pending buffers (happy path)."""
+    cfg = {
+        DOMAIN: {
+            "digests": [
+                {
+                    "name": "x",
+                    "target_service": "notify.sink",
+                    "window_seconds": 60,
+                }
+            ]
+        }
+    }
+    assert await async_setup_component(hass, DOMAIN, cfg)
+    await hass.async_block_till_done()
+
+    await hass.data[DOMAIN]["x"].async_add("queued1")
+    await hass.data[DOMAIN]["x"].async_add("queued2")
+    assert downstream_calls == []  # window not elapsed
+
+    hass.bus.async_fire("homeassistant_stop")
+    await hass.async_block_till_done()
+
+    assert len(downstream_calls) == 1
+    assert "queued1" in downstream_calls[0]["message"]
+    assert "queued2" in downstream_calls[0]["message"]
+
+
 async def test_shutdown_flush_times_out_on_hang(hass, monkeypatch, caplog) -> None:
     """A downstream that hangs during shutdown must not stall HA stop —
     the per-digest wait_for caps it at SHUTDOWN_FLUSH_TIMEOUT."""
