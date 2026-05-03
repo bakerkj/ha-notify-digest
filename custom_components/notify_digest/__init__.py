@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from typing import Any
 
@@ -52,6 +53,10 @@ from .digest import DigestBuffer, DigestConfig
 from .notify import DigestNotifyEntity
 
 _LOGGER = logging.getLogger(__name__)
+
+# Per-digest timeout when flushing on HA shutdown. Without this, a hung
+# downstream service would stall HA's stop sequence indefinitely.
+SHUTDOWN_FLUSH_TIMEOUT = 10.0
 
 
 def _service_id(value: str) -> str:
@@ -187,7 +192,19 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
 
     async def _shutdown(_event: Any) -> None:
         for buf in buffers.values():
-            await buf.async_flush(reason="shutdown")
+            try:
+                await asyncio.wait_for(
+                    buf.async_flush(reason="shutdown"),
+                    timeout=SHUTDOWN_FLUSH_TIMEOUT,
+                )
+            except TimeoutError:
+                _LOGGER.warning(
+                    "shutdown: digest %r flush exceeded %.1fs timeout",
+                    buf.name,
+                    SHUTDOWN_FLUSH_TIMEOUT,
+                )
+            except Exception:
+                _LOGGER.exception("shutdown: digest %r flush failed", buf.name)
 
     hass.bus.async_listen_once("homeassistant_stop", _shutdown)
 

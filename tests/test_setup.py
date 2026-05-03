@@ -4,9 +4,13 @@
 
 from __future__ import annotations
 
+import asyncio
+import logging
+
 import pytest
 from homeassistant.setup import async_setup_component
 
+import custom_components.notify_digest as integration
 from custom_components.notify_digest.const import (
     DOMAIN,
     SERVICE_FLUSH,
@@ -88,3 +92,38 @@ async def test_flush_unknown_digest_is_silent(hass, downstream_calls) -> None:
     )
     await hass.async_block_till_done()
     assert downstream_calls == []
+
+
+async def test_shutdown_flush_times_out_on_hang(hass, monkeypatch, caplog) -> None:
+    """A downstream that hangs during shutdown must not stall HA stop —
+    the per-digest wait_for caps it at SHUTDOWN_FLUSH_TIMEOUT."""
+    monkeypatch.setattr(integration, "SHUTDOWN_FLUSH_TIMEOUT", 0.1)
+
+    cancel_event = asyncio.Event()
+
+    async def _hangs(_call) -> None:
+        await cancel_event.wait()
+
+    hass.services.async_register("notify", "sink", _hangs)
+
+    cfg = {
+        DOMAIN: {
+            "digests": [{"name": "x", "target_service": "notify.sink"}],
+        }
+    }
+    assert await async_setup_component(hass, DOMAIN, cfg)
+    await hass.async_block_till_done()
+
+    await hass.data[DOMAIN]["x"].async_add("queued")
+
+    with caplog.at_level(logging.WARNING, logger=integration.__name__):
+        hass.bus.async_fire("homeassistant_stop")
+        # Headroom over our 0.1s timeout. If wait_for is missing, we'd block here.
+        await asyncio.sleep(0.3)
+
+    assert any(
+        "exceeded" in r.message and "timeout" in r.message for r in caplog.records
+    ), f"expected timeout warning; got: {[r.message for r in caplog.records]}"
+
+    # Release the hung service handler so teardown isn't dirty.
+    cancel_event.set()
