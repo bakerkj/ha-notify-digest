@@ -45,8 +45,10 @@ be coalesced together (because it's all going to the same recipient) shares one
 digest — typical examples are a WhatsApp group, a Telegram chat, or a notify
 entity. Name digests after the channel they feed.
 
-> Changes to `configuration.yaml` require a Home Assistant restart. The
-> integration does not currently support reload from `Developer Tools`.
+> Changes to `configuration.yaml` are picked up by calling
+> `notify_digest.reload` (or via Developer Tools → Services). Pending messages
+> on existing digests are flushed first, then the new configuration is
+> installed; no Home Assistant restart needed.
 
 ```yaml
 notify_digest:
@@ -113,6 +115,8 @@ The integration also exposes:
     digest: whatsapp_house
   ```
 - `notify_digest.flush_all` — flush every configured digest.
+- `notify_digest.reload` — re-read `configuration.yaml` and rebuild the digest
+  set. Pending messages on existing digests are flushed first.
 
 Pending buffers are also flushed automatically when Home Assistant shuts down,
 so messages are not lost on restart.

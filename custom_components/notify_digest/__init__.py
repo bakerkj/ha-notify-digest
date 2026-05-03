@@ -13,7 +13,10 @@ import voluptuous as vol
 from homeassistant.components.notify import DATA_COMPONENT as NOTIFY_DATA_COMPONENT
 from homeassistant.const import EVENT_HOMEASSISTANT_STOP
 from homeassistant.core import HomeAssistant, ServiceCall
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import config_validation as cv
+from homeassistant.helpers.reload import async_integration_yaml_config
+from homeassistant.helpers.service import async_register_admin_service
 from homeassistant.helpers.typing import ConfigType
 
 from .const import (
@@ -41,6 +44,7 @@ from .const import (
     DOMAIN,
     SERVICE_FLUSH,
     SERVICE_FLUSH_ALL,
+    SERVICE_RELOAD,
     TITLE_MODE_FIRST,
     TITLE_MODE_JOIN,
     TITLE_MODE_LAST,
@@ -52,9 +56,14 @@ from .notify import DigestNotifyEntity
 
 _LOGGER = logging.getLogger(__name__)
 
-# Per-digest timeout when flushing on HA shutdown. Without this, a hung
-# downstream service would stall HA's stop sequence indefinitely.
+# Per-digest timeout for in-flight flushes during shutdown or reload. Without
+# this, a hung downstream service would stall HA's stop sequence (or block a
+# reload) indefinitely.
 SHUTDOWN_FLUSH_TIMEOUT = 10.0
+
+# hass.data key for the list of currently-registered DigestNotifyEntity
+# instances. Reload uses it to remove old entities before installing new ones.
+DATA_ENTITIES = f"{DOMAIN}_entities"
 
 
 def _service_id(value: str) -> str:
@@ -152,44 +161,58 @@ FLUSH_SERVICE_SCHEMA = vol.Schema(
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     """Set up Notify Digest from configuration.yaml."""
     domain_cfg = config.get(DOMAIN)
-    if not domain_cfg:
-        return True
-
-    buffers: dict[str, DigestBuffer] = {}
-    for raw in domain_cfg[CONF_DIGESTS]:
-        cfg = DigestConfig.from_raw(raw)
-        buffers[cfg.name] = DigestBuffer(hass, cfg, _LOGGER.getChild(cfg.name))
-
-    hass.data[DOMAIN] = buffers
+    if domain_cfg:
+        await _async_install_digests(hass, domain_cfg)
+    else:
+        # Still install empty state and the reload service so a user who adds
+        # config later can pick it up via reload without restarting HA.
+        hass.data[DOMAIN] = {}
+        hass.data[DATA_ENTITIES] = []
 
     async def _flush(call: ServiceCall) -> None:
         name = call.data[ATTR_DIGEST_NAME]
-        buf = buffers.get(name)
+        buf = hass.data.get(DOMAIN, {}).get(name)
         if buf is None:
             _LOGGER.warning("flush: unknown digest %r", name)
             return
         await buf.async_flush(reason="service")
 
     async def _flush_all(_call: ServiceCall) -> None:
-        for buf in buffers.values():
+        for buf in hass.data.get(DOMAIN, {}).values():
             await buf.async_flush(reason="service_all")
+
+    async def _reload(_call: ServiceCall) -> None:
+        """Reload digest configuration from configuration.yaml.
+
+        Drains pending messages on existing buffers (best-effort, with the
+        same per-digest timeout used at shutdown), removes their entities,
+        re-reads the YAML, and installs the new set.
+        """
+        try:
+            new_config = await async_integration_yaml_config(hass, DOMAIN)
+        except HomeAssistantError:
+            _LOGGER.exception("reload: failed to read configuration.yaml")
+            return
+
+        await _async_drain_and_remove(hass)
+
+        new_domain_cfg = (new_config or {}).get(DOMAIN)
+        if new_domain_cfg:
+            await _async_install_digests(hass, new_domain_cfg)
+        else:
+            hass.data[DOMAIN] = {}
+            hass.data[DATA_ENTITIES] = []
+
+        _LOGGER.info("Notify Digest reloaded: %d digest(s)", len(hass.data[DOMAIN]))
 
     hass.services.async_register(
         DOMAIN, SERVICE_FLUSH, _flush, schema=FLUSH_SERVICE_SCHEMA
     )
     hass.services.async_register(DOMAIN, SERVICE_FLUSH_ALL, _flush_all)
-
-    # Register one NotifyEntity per digest under the notify integration's
-    # EntityComponent. Doing this directly (rather than via async_load_platform)
-    # is what gets us the modern entity path — discovery routes through the
-    # legacy platform setup, which expects async_get_service.
-    notify_component = hass.data[NOTIFY_DATA_COMPONENT]
-    await notify_component.async_add_entities(
-        DigestNotifyEntity(buf) for buf in buffers.values()
-    )
+    async_register_admin_service(hass, DOMAIN, SERVICE_RELOAD, _reload)
 
     async def _shutdown(_event: Any) -> None:
-        for buf in buffers.values():
+        for buf in hass.data.get(DOMAIN, {}).values():
             try:
                 await asyncio.wait_for(
                     buf.async_flush(reason="shutdown"),
@@ -206,9 +229,56 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
 
     hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STOP, _shutdown)
 
+    return True
+
+
+async def _async_install_digests(
+    hass: HomeAssistant, domain_cfg: dict[str, Any]
+) -> None:
+    """Build buffers + entities from a validated domain config block, register
+    them, and store handles in hass.data for later reload."""
+    buffers: dict[str, DigestBuffer] = {}
+    entities: list[DigestNotifyEntity] = []
+    for raw in domain_cfg[CONF_DIGESTS]:
+        cfg = DigestConfig.from_raw(raw)
+        buf = DigestBuffer(hass, cfg, _LOGGER.getChild(cfg.name))
+        buffers[cfg.name] = buf
+        entities.append(DigestNotifyEntity(buf))
+
+    hass.data[DOMAIN] = buffers
+    hass.data[DATA_ENTITIES] = entities
+
+    if entities:
+        notify_component = hass.data[NOTIFY_DATA_COMPONENT]
+        await notify_component.async_add_entities(entities)
+
     _LOGGER.info(
-        "Notify Digest set up with %d digest(s): %s",
+        "Notify Digest installed %d digest(s): %s",
         len(buffers),
         ", ".join(sorted(buffers)),
     )
-    return True
+
+
+async def _async_drain_and_remove(hass: HomeAssistant) -> None:
+    """Drain pending messages on existing buffers (best-effort) and remove
+    their entities. Used by reload before installing the new set."""
+    for buf in hass.data.get(DOMAIN, {}).values():
+        try:
+            await asyncio.wait_for(
+                buf.async_flush(reason="reload"),
+                timeout=SHUTDOWN_FLUSH_TIMEOUT,
+            )
+        except TimeoutError:
+            _LOGGER.warning(
+                "reload: digest %r flush exceeded %.1fs timeout",
+                buf.name,
+                SHUTDOWN_FLUSH_TIMEOUT,
+            )
+        except Exception:
+            _LOGGER.exception("reload: digest %r flush failed", buf.name)
+
+    # force_remove drops the registry entry too; without it, the entity_id
+    # lingers as "unavailable, restored" after reload — confusing for users
+    # who renamed or removed a digest.
+    for entity in hass.data.get(DATA_ENTITIES, []):
+        await entity.async_remove(force_remove=True)

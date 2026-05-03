@@ -19,3 +19,11 @@ flush_all:
   description: >-
     Immediately flush every configured digest. Equivalent to calling `flush` for
     each digest name. Buffers that are empty are skipped silently.
+
+reload:
+  name: Reload Notify Digest
+  description: >-
+    Re-read `notify_digest:` from configuration.yaml. Pending messages on
+    existing digests are flushed first (with a per-digest timeout), their notify
+    entities are removed, and the new configuration is installed. Lets you pick
+    up config changes without restarting Home Assistant.
