@@ -6,16 +6,19 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from homeassistant.const import EVENT_HOMEASSISTANT_STOP
 from homeassistant.setup import async_setup_component
 
 import custom_components.notify_digest as integration
+from custom_components.notify_digest import CONFIG_SCHEMA
 from custom_components.notify_digest.const import (
     DOMAIN,
     SERVICE_FLUSH,
     SERVICE_FLUSH_ALL,
+    SERVICE_RELOAD,
 )
 
 
@@ -203,3 +206,106 @@ async def test_shutdown_flush_times_out_on_hang(hass, monkeypatch, caplog) -> No
 
     # Release the hung service handler so teardown isn't dirty.
     cancel_event.set()
+
+
+async def test_reload_swaps_in_new_digests(hass) -> None:
+    """A reload tears down the existing digest set and installs the new YAML."""
+    sink_a: list[dict] = []
+    sink_b: list[dict] = []
+
+    async def _a(call) -> None:
+        sink_a.append(dict(call.data))
+
+    async def _b(call) -> None:
+        sink_b.append(dict(call.data))
+
+    hass.services.async_register("notify", "sink_a", _a)
+    hass.services.async_register("notify", "sink_b", _b)
+
+    cfg1 = {
+        DOMAIN: {
+            "digests": [
+                {
+                    "name": "first",
+                    "target_service": "notify.sink_a",
+                    "window_seconds": 60,
+                }
+            ]
+        }
+    }
+    assert await async_setup_component(hass, DOMAIN, cfg1)
+    await hass.async_block_till_done()
+
+    assert hass.states.get("notify.first") is not None
+
+    cfg2_validated = CONFIG_SCHEMA(
+        {
+            DOMAIN: {
+                "digests": [
+                    {
+                        "name": "second",
+                        "target_service": "notify.sink_b",
+                        "window_seconds": 60,
+                    }
+                ]
+            }
+        }
+    )
+
+    with patch(
+        "custom_components.notify_digest.async_integration_yaml_config",
+        new=AsyncMock(return_value=cfg2_validated),
+    ):
+        await hass.services.async_call(DOMAIN, SERVICE_RELOAD, {}, blocking=True)
+        await hass.async_block_till_done()
+
+    assert hass.states.get("notify.first") is None
+    assert hass.states.get("notify.second") is not None
+    assert "second" in hass.data[DOMAIN]
+    assert "first" not in hass.data[DOMAIN]
+
+
+async def test_reload_drains_pending_messages_first(hass, downstream_calls) -> None:
+    """Reload flushes pending messages on existing digests before tearing down."""
+    cfg1 = {
+        DOMAIN: {
+            "digests": [
+                {
+                    "name": "x",
+                    "target_service": "notify.sink",
+                    "window_seconds": 60,
+                }
+            ]
+        }
+    }
+    assert await async_setup_component(hass, DOMAIN, cfg1)
+    await hass.async_block_till_done()
+
+    await hass.data[DOMAIN]["x"].async_add("pending 1")
+    await hass.data[DOMAIN]["x"].async_add("pending 2")
+    assert downstream_calls == []
+
+    cfg2_validated = CONFIG_SCHEMA(
+        {
+            DOMAIN: {
+                "digests": [
+                    {
+                        "name": "y",
+                        "target_service": "notify.sink",
+                        "window_seconds": 60,
+                    }
+                ]
+            }
+        }
+    )
+
+    with patch(
+        "custom_components.notify_digest.async_integration_yaml_config",
+        new=AsyncMock(return_value=cfg2_validated),
+    ):
+        await hass.services.async_call(DOMAIN, SERVICE_RELOAD, {}, blocking=True)
+        await hass.async_block_till_done()
+
+    assert len(downstream_calls) == 1
+    assert "pending 1" in downstream_calls[0]["message"]
+    assert "pending 2" in downstream_calls[0]["message"]

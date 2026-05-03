@@ -35,5 +35,6 @@ DEFAULT_DEDUPE = False
 
 SERVICE_FLUSH = "flush"
 SERVICE_FLUSH_ALL = "flush_all"
+SERVICE_RELOAD = "reload"
 
 ATTR_DIGEST_NAME = "digest"
