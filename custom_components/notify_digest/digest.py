@@ -108,7 +108,14 @@ class DigestBuffer:
         return self._max_buffer_arms
 
     async def async_add(self, message: str, title: str | None = None) -> None:
-        """Queue a message for the next flush. Empty/whitespace messages are ignored."""
+        """Queue a message for the next flush. Empty/whitespace messages are ignored.
+
+        When the buffer hits ``max_messages``, the flush is dispatched as a
+        background task rather than awaited — so the caller's automation is
+        never blocked on a slow downstream. Errors in the dispatched flush are
+        already logged inside ``async_flush``; we swallow them here to avoid
+        an unhandled-task warning.
+        """
         text = message.strip()
         if not text:
             return
@@ -123,13 +130,25 @@ class DigestBuffer:
 
         if len(self._pending.messages) >= self._config.max_messages:
             self._logger.debug(
-                "max_messages reached (%d) — forcing flush", self._config.max_messages
+                "max_messages reached (%d) — scheduling flush",
+                self._config.max_messages,
             )
-            await self.async_flush(reason="max_messages")
+            self._hass.async_create_task(
+                self._flush_swallow_errors(reason="max_messages"),
+                name=f"notify_digest_{self._config.name}_max_flush",
+            )
             return
 
         self._arm_window_timer()
         self._arm_max_buffer_timer()
+
+    async def _flush_swallow_errors(self, reason: str) -> None:
+        """Wrapper for fire-and-forget flushes. Errors are already logged
+        inside async_flush; suppressed here to avoid unhandled-task noise."""
+        try:
+            await self.async_flush(reason=reason)
+        except Exception:
+            pass
 
     async def async_flush(self, reason: str = "manual") -> None:
         """Drain the buffer and dispatch a single coalesced message downstream.

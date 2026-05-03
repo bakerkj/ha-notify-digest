@@ -81,6 +81,35 @@ async def test_max_messages_forces_early_flush(hass, calls) -> None:
     assert calls[0]["data"]["message"] == "a | b | c"
 
 
+async def test_max_messages_does_not_block_caller_on_slow_downstream(hass) -> None:
+    """async_add at max_messages dispatches the flush as a background task,
+    so the caller's automation isn't held up by a slow downstream."""
+    import asyncio as _asyncio
+
+    started = _asyncio.Event()
+    release = _asyncio.Event()
+
+    async def _slow(_call: Any) -> None:
+        started.set()
+        await release.wait()
+
+    hass.services.async_register("notify", "sink", _slow)
+
+    buf = DigestBuffer(hass, _config(max_messages=2), logging.getLogger("t"))
+    await buf.async_add("first")
+
+    # Second add hits the threshold. With a fire-and-forget flush this returns
+    # quickly even though the downstream service is hanging.
+    await _asyncio.wait_for(buf.async_add("second"), timeout=0.5)
+
+    # Confirm the slow handler actually got invoked (background task is running).
+    await _asyncio.wait_for(started.wait(), timeout=0.5)
+
+    # Cleanup — release the hung handler so test teardown is clean.
+    release.set()
+    await hass.async_block_till_done()
+
+
 async def test_dedupe_drops_repeats(hass, calls) -> None:
     buf = DigestBuffer(hass, _config(dedupe=True), logging.getLogger("t"))
     await buf.async_add("same")
