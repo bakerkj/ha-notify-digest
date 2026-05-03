@@ -3,6 +3,7 @@
   "extends": ["config:recommended", ":semanticCommits", ":dependencyDashboard"],
   "schedule": ["before 6am on monday"],
   "timezone": "America/Los_Angeles",
+  "assignees": ["bakerkj"],
   "pre-commit": {
     "enabled": true
   },
