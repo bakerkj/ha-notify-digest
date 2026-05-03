@@ -58,9 +58,9 @@ notify_digest:
       max_buffer_seconds: 120
       separator: "\n• "
       header: "Recent activity:"
-      title_mode: first
+      title_mode: join
+      title_separator: " / "
       dedupe: true
-      media_policy: flush_then_send
 
     - name: telegram_house
       target_service: notify.send_message
@@ -69,20 +69,20 @@ notify_digest:
       window_seconds: 30
 ```
 
-| Field                 | Default           | Description                                                                   |
-| --------------------- | ----------------- | ----------------------------------------------------------------------------- |
-| `name`                | required          | Digest name. Exposed as the notify entity `notify.<name>`.                    |
-| `target_service`      | required          | Downstream service in `domain.service` form.                                  |
-| `target_service_data` | `{}`              | Extra fields merged into the downstream call (e.g. `target:`, `chat_id:`).    |
-| `window_seconds`      | `30`              | Coalescing window in seconds.                                                 |
-| `max_messages`        | `20`              | Flush early when the buffer reaches this many entries.                        |
-| `max_buffer_seconds`  | unset             | Hard ceiling on how long a message can sit buffered (sliding-mode safety).    |
-| `window_mode`         | `tumbling`        | `tumbling` or `sliding`.                                                      |
-| `separator`           | `"\n• "`          | Joined between messages (and after the header).                               |
-| `header`              | `""`              | Optional prefix prepended to the joined message.                              |
-| `title_mode`          | `first`           | `first`, `last`, or `join` (deduped, joined with `" / "`).                    |
-| `dedupe`              | `false`           | Drop a message if its body already exists in the current buffer.              |
-| `media_policy`        | `flush_then_send` | How to handle calls that carry a `data:` payload. See "Media handling" below. |
+| Field                 | Default    | Description                                                                |
+| --------------------- | ---------- | -------------------------------------------------------------------------- |
+| `name`                | required   | Digest name. Exposed as the notify entity `notify.<name>`.                 |
+| `target_service`      | required   | Downstream service in `domain.service` form.                               |
+| `target_service_data` | `{}`       | Extra fields merged into the downstream call (e.g. `target:`, `chat_id:`). |
+| `window_seconds`      | `30`       | Coalescing window in seconds.                                              |
+| `max_messages`        | `20`       | Flush early when the buffer reaches this many entries (minimum `2`).       |
+| `max_buffer_seconds`  | unset      | Hard ceiling on how long a message can sit buffered (sliding-mode safety). |
+| `window_mode`         | `tumbling` | `tumbling` or `sliding`.                                                   |
+| `separator`           | `"\n• "`   | Joined between messages (and after the header).                            |
+| `header`              | `""`       | Optional prefix prepended to the joined message.                           |
+| `title_mode`          | `first`    | `first`, `last`, or `join` (deduped).                                      |
+| `title_separator`     | `" / "`    | Joined between titles when `title_mode: join`.                             |
+| `dedupe`              | `false`    | Drop a message if its body already exists in the current buffer.           |
 
 ## Sending into a digest
 
@@ -114,31 +114,13 @@ The integration also exposes:
 Pending buffers are also flushed automatically when Home Assistant shuts down,
 so messages are not lost on restart.
 
-## Media handling
+## Media
 
-The notify entity contract is text-only — `notify.send_message` accepts only
-`message:` and `title:`. So media never enters the digest through the standard
-notify path; the API itself prevents it. This is the modern HA pattern and
-exactly the separation of concerns we want for coalescing.
-
-Where the `media_policy` setting still matters: any **direct programmatic
-caller** that invokes `DigestBuffer.async_add(..., data=...)` from inside
-another integration. That path remains as a defensive backstop, with the
-following per-digest policies:
-
-- **`flush_then_send`** (default) — drain any pending text first (so events
-  arrive in chronological order), then dispatch the media call to
-  `target_service` with `data:` merged in. Best when a digest sees an occasional
-  photo/video alongside text events.
-- **`passthrough`** — dispatch the media call immediately without touching the
-  text buffer. Lower latency for media; pending text may arrive after.
-- **`drop`** — silently discard media calls. Useful when a digest is
-  intentionally text-only and any media leaking through is a configuration smell
-  you'd rather not see surface as a broken downstream call.
-
-For media in your automations, **don't try to route media through the digest** —
-call `whatsapp.send_video` (or whichever direct service) for media, and use
-`notify.send_message` with the digest entity only for text events.
+The digest is text-only. The notify entity contract (`notify.send_message`)
+accepts only `message:` and `title:`, so media never reaches the buffer through
+the standard path. For media in your automations, call the downstream service
+directly — `whatsapp.send_video`, `notify.<provider>` with `data:`, etc. — and
+use the digest entity only for text events.
 
 ## Development
 
