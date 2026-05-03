@@ -6,7 +6,6 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from types import MappingProxyType
 from typing import Any
 
 import voluptuous as vol
@@ -68,31 +67,54 @@ def _service_id(value: str) -> str:
     return value
 
 
-DIGEST_SCHEMA = vol.Schema(
-    {
-        vol.Required(CONF_NAME): cv.slug,
-        vol.Required(CONF_TARGET_SERVICE): _service_id,
-        vol.Optional(CONF_TARGET_SERVICE_DATA, default=dict): {cv.string: object},
-        vol.Optional(CONF_WINDOW_SECONDS, default=DEFAULT_WINDOW_SECONDS): vol.All(
-            vol.Coerce(float), vol.Range(min=1, max=3600)
-        ),
-        vol.Optional(CONF_MAX_MESSAGES, default=DEFAULT_MAX_MESSAGES): vol.All(
-            vol.Coerce(int), vol.Range(min=2, max=1000)
-        ),
-        vol.Optional(CONF_MAX_BUFFER_SECONDS): vol.All(
-            vol.Coerce(float), vol.Range(min=1, max=86400)
-        ),
-        vol.Optional(CONF_WINDOW_MODE, default=DEFAULT_WINDOW_MODE): vol.In(
-            [WINDOW_MODE_TUMBLING, WINDOW_MODE_SLIDING]
-        ),
-        vol.Optional(CONF_SEPARATOR, default=DEFAULT_SEPARATOR): cv.string,
-        vol.Optional(CONF_HEADER, default=""): cv.string,
-        vol.Optional(CONF_TITLE_MODE, default=DEFAULT_TITLE_MODE): vol.In(
-            [TITLE_MODE_FIRST, TITLE_MODE_LAST, TITLE_MODE_JOIN]
-        ),
-        vol.Optional(CONF_TITLE_SEPARATOR, default=DEFAULT_TITLE_SEPARATOR): cv.string,
-        vol.Optional(CONF_DEDUPE, default=DEFAULT_DEDUPE): cv.boolean,
-    }
+def _reject_max_buffer_in_tumbling(value: dict[str, Any]) -> dict[str, Any]:
+    """``max_buffer_seconds`` only makes sense in sliding mode.
+
+    In tumbling mode the window timer arms once at first add and never resets,
+    so a separate "max age" ceiling is either redundant (>= window_seconds) or
+    just a shorter window (< window_seconds). Reject the combination so the
+    misconfiguration surfaces at setup, not silently as confusing flushes.
+    """
+    if (
+        value.get(CONF_WINDOW_MODE) == WINDOW_MODE_TUMBLING
+        and value.get(CONF_MAX_BUFFER_SECONDS) is not None
+    ):
+        raise vol.Invalid(
+            "max_buffer_seconds is only meaningful with window_mode: sliding"
+        )
+    return value
+
+
+DIGEST_SCHEMA = vol.All(
+    vol.Schema(
+        {
+            vol.Required(CONF_NAME): cv.slug,
+            vol.Required(CONF_TARGET_SERVICE): _service_id,
+            vol.Optional(CONF_TARGET_SERVICE_DATA, default=dict): {cv.string: object},
+            vol.Optional(CONF_WINDOW_SECONDS, default=DEFAULT_WINDOW_SECONDS): vol.All(
+                vol.Coerce(float), vol.Range(min=1, max=3600)
+            ),
+            vol.Optional(CONF_MAX_MESSAGES, default=DEFAULT_MAX_MESSAGES): vol.All(
+                vol.Coerce(int), vol.Range(min=2, max=1000)
+            ),
+            vol.Optional(CONF_MAX_BUFFER_SECONDS): vol.All(
+                vol.Coerce(float), vol.Range(min=1, max=86400)
+            ),
+            vol.Optional(CONF_WINDOW_MODE, default=DEFAULT_WINDOW_MODE): vol.In(
+                [WINDOW_MODE_TUMBLING, WINDOW_MODE_SLIDING]
+            ),
+            vol.Optional(CONF_SEPARATOR, default=DEFAULT_SEPARATOR): cv.string,
+            vol.Optional(CONF_HEADER, default=""): cv.string,
+            vol.Optional(CONF_TITLE_MODE, default=DEFAULT_TITLE_MODE): vol.In(
+                [TITLE_MODE_FIRST, TITLE_MODE_LAST, TITLE_MODE_JOIN]
+            ),
+            vol.Optional(
+                CONF_TITLE_SEPARATOR, default=DEFAULT_TITLE_SEPARATOR
+            ): cv.string,
+            vol.Optional(CONF_DEDUPE, default=DEFAULT_DEDUPE): cv.boolean,
+        }
+    ),
+    _reject_max_buffer_in_tumbling,
 )
 
 
@@ -135,26 +157,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
 
     buffers: dict[str, DigestBuffer] = {}
     for raw in domain_cfg[CONF_DIGESTS]:
-        cfg = DigestConfig(
-            name=raw[CONF_NAME],
-            target_service=raw[CONF_TARGET_SERVICE],
-            target_service_data=MappingProxyType(
-                dict(raw.get(CONF_TARGET_SERVICE_DATA) or {})
-            ),
-            window_seconds=float(raw[CONF_WINDOW_SECONDS]),
-            max_messages=int(raw[CONF_MAX_MESSAGES]),
-            max_buffer_seconds=(
-                float(raw[CONF_MAX_BUFFER_SECONDS])
-                if raw.get(CONF_MAX_BUFFER_SECONDS) is not None
-                else None
-            ),
-            window_mode=raw[CONF_WINDOW_MODE],
-            separator=raw[CONF_SEPARATOR],
-            header=raw[CONF_HEADER],
-            title_mode=raw[CONF_TITLE_MODE],
-            title_separator=raw[CONF_TITLE_SEPARATOR],
-            dedupe=bool(raw[CONF_DEDUPE]),
-        )
+        cfg = DigestConfig.from_raw(raw)
         buffers[cfg.name] = DigestBuffer(hass, cfg, _LOGGER.getChild(cfg.name))
 
     hass.data[DOMAIN] = buffers

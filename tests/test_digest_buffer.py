@@ -211,6 +211,16 @@ async def test_empty_message_ignored(hass, calls) -> None:
     assert calls == []
 
 
+async def test_whitespace_title_dropped(hass, calls) -> None:
+    """A title that's only whitespace shouldn't appear in the output."""
+    buf = DigestBuffer(hass, _config(title_mode="first"), logging.getLogger("t"))
+    await buf.async_add("hi", title="   ")
+    await buf.async_add("there", title="Real Title")
+    await buf.async_flush()
+    # First non-empty title wins (whitespace one was dropped).
+    assert calls[0]["data"]["title"] == "Real Title"
+
+
 async def test_title_separator_configurable(hass, calls) -> None:
     """title_separator is honored when title_mode == join."""
     buf = DigestBuffer(
@@ -266,7 +276,7 @@ async def test_downstream_failure_logs_messages_and_drains(hass, caplog) -> None
     await buf.async_add("important2")
 
     with caplog.at_level(logging.ERROR, logger="test_digest_failure"):
-        with pytest.raises(Exception):
+        with pytest.raises(RuntimeError, match="downstream broken"):
             await buf.async_flush()
 
     assert "important1" in caplog.text

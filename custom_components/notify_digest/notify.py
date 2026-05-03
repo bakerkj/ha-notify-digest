@@ -27,6 +27,7 @@ class DigestNotifyEntity(NotifyEntity):
     _attr_supported_features = NotifyEntityFeature.TITLE
 
     def __init__(self, buffer: DigestBuffer) -> None:
+        super().__init__()
         self._buffer = buffer
         self._attr_name = buffer.name
         self._attr_unique_id = f"notify_digest_{buffer.name}"
