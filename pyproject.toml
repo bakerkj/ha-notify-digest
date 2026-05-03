@@ -21,4 +21,4 @@ package = false
 asyncio_mode = "auto"
 
 [tool.ruff]
-target-version = "py313"
+target-version = "py314"

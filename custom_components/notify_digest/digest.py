@@ -8,12 +8,25 @@ import asyncio
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from logging import Logger
+from types import MappingProxyType
 from typing import Any
 
 from homeassistant.core import CALLBACK_TYPE, HomeAssistant, callback
 from homeassistant.helpers.event import async_call_later
 
 from .const import (
+    CONF_DEDUPE,
+    CONF_HEADER,
+    CONF_MAX_BUFFER_SECONDS,
+    CONF_MAX_MESSAGES,
+    CONF_NAME,
+    CONF_SEPARATOR,
+    CONF_TARGET_SERVICE,
+    CONF_TARGET_SERVICE_DATA,
+    CONF_TITLE_MODE,
+    CONF_TITLE_SEPARATOR,
+    CONF_WINDOW_MODE,
+    CONF_WINDOW_SECONDS,
     TITLE_MODE_FIRST,
     TITLE_MODE_LAST,
     WINDOW_MODE_SLIDING,
@@ -24,9 +37,9 @@ from .const import (
 class DigestConfig:
     """Static configuration for one digest pipeline.
 
-    ``target_service_data`` is typed as a read-only Mapping; setup wraps the
-    incoming dict in MappingProxyType so the frozen-dataclass contract holds
-    for the embedded payload too.
+    ``target_service_data`` is typed as a read-only Mapping; ``from_raw``
+    wraps the incoming dict in MappingProxyType so the frozen-dataclass
+    contract holds for the embedded payload too.
     """
 
     name: str
@@ -41,6 +54,27 @@ class DigestConfig:
     title_mode: str
     title_separator: str
     dedupe: bool
+
+    @classmethod
+    def from_raw(cls, raw: Mapping[str, Any]) -> DigestConfig:
+        """Build a DigestConfig from a schema-validated raw mapping."""
+        max_buffer = raw.get(CONF_MAX_BUFFER_SECONDS)
+        return cls(
+            name=raw[CONF_NAME],
+            target_service=raw[CONF_TARGET_SERVICE],
+            target_service_data=MappingProxyType(
+                dict(raw.get(CONF_TARGET_SERVICE_DATA) or {})
+            ),
+            window_seconds=float(raw[CONF_WINDOW_SECONDS]),
+            max_messages=int(raw[CONF_MAX_MESSAGES]),
+            max_buffer_seconds=float(max_buffer) if max_buffer is not None else None,
+            window_mode=raw[CONF_WINDOW_MODE],
+            separator=raw[CONF_SEPARATOR],
+            header=raw[CONF_HEADER],
+            title_mode=raw[CONF_TITLE_MODE],
+            title_separator=raw[CONF_TITLE_SEPARATOR],
+            dedupe=bool(raw[CONF_DEDUPE]),
+        )
 
 
 @dataclass
@@ -124,8 +158,9 @@ class DigestBuffer:
             self._logger.debug("dedupe: dropping duplicate message")
             return
 
-        if title:
-            self._pending.titles.append(title)
+        clean_title = title.strip() if title else ""
+        if clean_title:
+            self._pending.titles.append(clean_title)
         self._pending.messages.append(text)
 
         if len(self._pending.messages) >= self._config.max_messages:

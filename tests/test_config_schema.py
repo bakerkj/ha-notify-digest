@@ -103,6 +103,38 @@ class TestDigestSchema:
                 }
             )
 
+    def test_max_buffer_rejected_in_tumbling_mode(self) -> None:
+        """max_buffer_seconds only makes sense in sliding mode; tumbling+max_buffer
+        is a misconfiguration that should fail loudly at setup."""
+        with pytest.raises(vol.Invalid, match="sliding"):
+            _validate(
+                {
+                    "digests": [
+                        {
+                            "name": "x",
+                            "target_service": "notify.a",
+                            "window_mode": "tumbling",
+                            "max_buffer_seconds": 60,
+                        }
+                    ]
+                }
+            )
+
+    def test_max_buffer_allowed_in_sliding_mode(self) -> None:
+        cfg = _validate(
+            {
+                "digests": [
+                    {
+                        "name": "x",
+                        "target_service": "notify.a",
+                        "window_mode": "sliding",
+                        "max_buffer_seconds": 60,
+                    }
+                ]
+            }
+        )
+        assert cfg["digests"][0]["max_buffer_seconds"] == 60
+
     def test_full_options_pass_through(self) -> None:
         cfg = _validate(
             {
