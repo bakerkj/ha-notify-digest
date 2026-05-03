@@ -27,8 +27,8 @@ def _config(**overrides: Any) -> DigestConfig:
         separator=" | ",
         header="",
         title_mode="first",
+        title_separator=" / ",
         dedupe=False,
-        media_policy="flush_then_send",
     )
     base.update(overrides)
     return DigestConfig(**base)
@@ -183,87 +183,17 @@ async def test_empty_message_ignored(hass, calls) -> None:
     assert calls == []
 
 
-# --- media handling ----------------------------------------------------------
-
-
-async def test_media_flush_then_send_drains_pending_text_first(hass, calls) -> None:
-    """Default policy: pending text gets flushed before the media call goes out."""
-    buf = DigestBuffer(
-        hass, _config(media_policy="flush_then_send"), logging.getLogger("t")
-    )
-    await buf.async_add("queued text 1")
-    await buf.async_add("queued text 2")
-    assert calls == []
-
-    await buf.async_add(
-        "video caption", title="Front Door", data={"video_url": "http://x/clip.mp4"}
-    )
-    await hass.async_block_till_done()
-
-    assert len(calls) == 2
-    assert calls[0]["data"]["message"] == "queued text 1 | queued text 2"
-    assert "video_url" not in calls[0]["data"]
-    assert calls[1]["data"]["video_url"] == "http://x/clip.mp4"
-    assert calls[1]["data"]["message"] == "video caption"
-    assert calls[1]["data"]["title"] == "Front Door"
-
-
-async def test_media_passthrough_does_not_flush(hass, calls) -> None:
-    """Passthrough policy: media goes out immediately, text remains buffered."""
-    buf = DigestBuffer(
-        hass, _config(media_policy="passthrough"), logging.getLogger("t")
-    )
-    await buf.async_add("queued text")
-    await buf.async_add("media", data={"image": "http://x/snap.jpg"})
-    await hass.async_block_till_done()
-
-    assert len(calls) == 1
-    assert calls[0]["data"]["image"] == "http://x/snap.jpg"
-    assert buf.pending_count == 1  # text still buffered
-
-    await buf.async_flush()
-    assert len(calls) == 2
-    assert calls[1]["data"]["message"] == "queued text"
-
-
-async def test_media_drop_discards_silently(hass, calls) -> None:
-    buf = DigestBuffer(hass, _config(media_policy="drop"), logging.getLogger("t"))
-    await buf.async_add("queued text")
-    await buf.async_add("media", data={"video_url": "http://x/clip.mp4"})
-    await hass.async_block_till_done()
-
-    assert calls == []  # media dropped, text still buffered
-    assert buf.pending_count == 1
-    await buf.async_flush()
-    assert len(calls) == 1
-    assert calls[0]["data"]["message"] == "queued text"
-
-
-async def test_media_merges_target_service_data(hass, calls) -> None:
-    """Static target_service_data + per-call data should both reach the downstream."""
+async def test_title_separator_configurable(hass, calls) -> None:
+    """title_separator is honored when title_mode == join."""
     buf = DigestBuffer(
         hass,
-        _config(target_service_data={"target": "120@g.us"}),
+        _config(title_mode="join", title_separator=" • "),
         logging.getLogger("t"),
     )
-    await buf.async_add("", data={"video_url": "http://x/clip.mp4"})
-    await hass.async_block_till_done()
-
-    assert len(calls) == 1
-    assert calls[0]["data"]["target"] == "120@g.us"
-    assert calls[0]["data"]["video_url"] == "http://x/clip.mp4"
-    # Empty message should not get added as a message field.
-    assert "message" not in calls[0]["data"]
-
-
-async def test_empty_data_dict_is_text_path(hass, calls) -> None:
-    """An empty ``data`` dict should NOT count as media — fall through to buffering."""
-    buf = DigestBuffer(hass, _config(), logging.getLogger("t"))
-    await buf.async_add("hi", data={})
-    assert calls == []
-    assert buf.pending_count == 1
+    await buf.async_add("a", title="T1")
+    await buf.async_add("b", title="T2")
     await buf.async_flush()
-    assert calls[0]["data"]["message"] == "hi"
+    assert calls[0]["data"]["title"] == "T1 • T2"
 
 
 async def test_downstream_failure_logs_messages_and_drains(hass, caplog) -> None:

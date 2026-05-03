@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from types import MappingProxyType
 from typing import Any
 
 import voluptuous as vol
@@ -22,25 +23,22 @@ from .const import (
     CONF_HEADER,
     CONF_MAX_BUFFER_SECONDS,
     CONF_MAX_MESSAGES,
-    CONF_MEDIA_POLICY,
     CONF_NAME,
     CONF_SEPARATOR,
     CONF_TARGET_SERVICE,
     CONF_TARGET_SERVICE_DATA,
     CONF_TITLE_MODE,
+    CONF_TITLE_SEPARATOR,
     CONF_WINDOW_MODE,
     CONF_WINDOW_SECONDS,
     DEFAULT_DEDUPE,
     DEFAULT_MAX_MESSAGES,
-    DEFAULT_MEDIA_POLICY,
     DEFAULT_SEPARATOR,
     DEFAULT_TITLE_MODE,
+    DEFAULT_TITLE_SEPARATOR,
     DEFAULT_WINDOW_MODE,
     DEFAULT_WINDOW_SECONDS,
     DOMAIN,
-    MEDIA_POLICY_DROP,
-    MEDIA_POLICY_FLUSH_THEN_SEND,
-    MEDIA_POLICY_PASSTHROUGH,
     SERVICE_FLUSH,
     SERVICE_FLUSH_ALL,
     TITLE_MODE_FIRST,
@@ -78,7 +76,7 @@ DIGEST_SCHEMA = vol.Schema(
             vol.Coerce(float), vol.Range(min=1, max=3600)
         ),
         vol.Optional(CONF_MAX_MESSAGES, default=DEFAULT_MAX_MESSAGES): vol.All(
-            vol.Coerce(int), vol.Range(min=1, max=1000)
+            vol.Coerce(int), vol.Range(min=2, max=1000)
         ),
         vol.Optional(CONF_MAX_BUFFER_SECONDS): vol.All(
             vol.Coerce(float), vol.Range(min=1, max=86400)
@@ -91,14 +89,8 @@ DIGEST_SCHEMA = vol.Schema(
         vol.Optional(CONF_TITLE_MODE, default=DEFAULT_TITLE_MODE): vol.In(
             [TITLE_MODE_FIRST, TITLE_MODE_LAST, TITLE_MODE_JOIN]
         ),
+        vol.Optional(CONF_TITLE_SEPARATOR, default=DEFAULT_TITLE_SEPARATOR): cv.string,
         vol.Optional(CONF_DEDUPE, default=DEFAULT_DEDUPE): cv.boolean,
-        vol.Optional(CONF_MEDIA_POLICY, default=DEFAULT_MEDIA_POLICY): vol.In(
-            [
-                MEDIA_POLICY_FLUSH_THEN_SEND,
-                MEDIA_POLICY_PASSTHROUGH,
-                MEDIA_POLICY_DROP,
-            ]
-        ),
     }
 )
 
@@ -145,7 +137,9 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
         cfg = DigestConfig(
             name=raw[CONF_NAME],
             target_service=raw[CONF_TARGET_SERVICE],
-            target_service_data=dict(raw.get(CONF_TARGET_SERVICE_DATA) or {}),
+            target_service_data=MappingProxyType(
+                dict(raw.get(CONF_TARGET_SERVICE_DATA) or {})
+            ),
             window_seconds=float(raw[CONF_WINDOW_SECONDS]),
             max_messages=int(raw[CONF_MAX_MESSAGES]),
             max_buffer_seconds=(
@@ -157,8 +151,8 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
             separator=raw[CONF_SEPARATOR],
             header=raw[CONF_HEADER],
             title_mode=raw[CONF_TITLE_MODE],
+            title_separator=raw[CONF_TITLE_SEPARATOR],
             dedupe=bool(raw[CONF_DEDUPE]),
-            media_policy=raw[CONF_MEDIA_POLICY],
         )
         buffers[cfg.name] = DigestBuffer(hass, cfg, _LOGGER.getChild(cfg.name))
 

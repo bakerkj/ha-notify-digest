@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from logging import Logger
 from typing import Any
@@ -13,11 +14,7 @@ from homeassistant.core import CALLBACK_TYPE, HomeAssistant, callback
 from homeassistant.helpers.event import async_call_later
 
 from .const import (
-    MEDIA_POLICY_DROP,
-    MEDIA_POLICY_FLUSH_THEN_SEND,
-    MEDIA_POLICY_PASSTHROUGH,
     TITLE_MODE_FIRST,
-    TITLE_MODE_JOIN,
     TITLE_MODE_LAST,
     WINDOW_MODE_SLIDING,
 )
@@ -25,11 +22,16 @@ from .const import (
 
 @dataclass(frozen=True)
 class DigestConfig:
-    """Static configuration for one digest pipeline."""
+    """Static configuration for one digest pipeline.
+
+    ``target_service_data`` is typed as a read-only Mapping; setup wraps the
+    incoming dict in MappingProxyType so the frozen-dataclass contract holds
+    for the embedded payload too.
+    """
 
     name: str
     target_service: str
-    target_service_data: dict[str, Any]
+    target_service_data: Mapping[str, Any]
     window_seconds: float
     max_messages: int
     max_buffer_seconds: float | None
@@ -37,8 +39,8 @@ class DigestConfig:
     separator: str
     header: str
     title_mode: str
+    title_separator: str
     dedupe: bool
-    media_policy: str
 
 
 @dataclass
@@ -81,23 +83,8 @@ class DigestBuffer:
     def pending_count(self) -> int:
         return len(self._pending.messages)
 
-    async def async_add(
-        self,
-        message: str,
-        title: str | None = None,
-        data: dict[str, Any] | None = None,
-    ) -> None:
-        """Queue a message, or hand off to the media handler if ``data`` is set.
-
-        A non-empty ``data`` dict signals "this isn't plain text" — typical HA
-        notify convention puts URLs, attachments, photos and videos there.
-        Coalescing media is conceptually awkward (you can't join two videos),
-        so the buffer routes those calls around itself per ``media_policy``.
-        """
-        if data:
-            await self._handle_media(message, title, data)
-            return
-
+    async def async_add(self, message: str, title: str | None = None) -> None:
+        """Queue a message for the next flush. Empty/whitespace messages are ignored."""
         text = message.strip()
         if not text:
             return
@@ -119,39 +106,6 @@ class DigestBuffer:
 
         self._arm_window_timer()
         self._arm_max_buffer_timer()
-
-    async def _handle_media(
-        self, message: str, title: str | None, data: dict[str, Any]
-    ) -> None:
-        """Dispatch a media-bearing call per the digest's media_policy.
-
-        ``flush_then_send`` (default) drains pending text first so events
-        arrive in chronological order. ``passthrough`` skips the flush — the
-        downstream sees media immediately, but pending text may arrive after.
-        ``drop`` discards media silently (useful when a digest is intentionally
-        text-only and media leaking through is a configuration smell).
-        """
-        policy = self._config.media_policy
-        if policy == MEDIA_POLICY_DROP:
-            self._logger.debug("media: dropping per policy")
-            return
-        if policy == MEDIA_POLICY_FLUSH_THEN_SEND:
-            await self.async_flush(reason="media_flush")
-        elif policy != MEDIA_POLICY_PASSTHROUGH:
-            self._logger.warning(
-                "media: unknown policy %r, treating as passthrough", policy
-            )
-
-        domain, service = self._config.target_service.split(".", 1)
-        payload: dict[str, Any] = dict(self._config.target_service_data)
-        payload.update(data)
-        if message:
-            payload["message"] = str(message)
-        if title:
-            payload["title"] = str(title)
-
-        self._logger.debug("media (%s): → %s.%s", policy, domain, service)
-        await self._hass.services.async_call(domain, service, payload, blocking=True)
 
     async def async_flush(self, reason: str = "manual") -> None:
         """Drain the buffer and dispatch a single coalesced message downstream.
@@ -256,15 +210,14 @@ class DigestBuffer:
             return titles[0]
         if mode == TITLE_MODE_LAST:
             return titles[-1]
-        if mode == TITLE_MODE_JOIN:
-            seen: set[str] = set()
-            ordered: list[str] = []
-            for t in titles:
-                if t not in seen:
-                    seen.add(t)
-                    ordered.append(t)
-            return " / ".join(ordered)
-        return titles[0]
+        # TITLE_MODE_JOIN: order-preserving dedupe, joined by the configured separator.
+        seen: set[str] = set()
+        ordered: list[str] = []
+        for t in titles:
+            if t not in seen:
+                seen.add(t)
+                ordered.append(t)
+        return self._config.title_separator.join(ordered)
 
     def _render_message(self, messages: list[str]) -> str:
         body = self._config.separator.join(messages)

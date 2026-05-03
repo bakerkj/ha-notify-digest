@@ -88,10 +88,8 @@ class TestDigestSchema:
                 }
             )
 
-    def test_media_policy_default_and_choices(self) -> None:
-        cfg = _validate({"digests": [{"name": "x", "target_service": "notify.a"}]})
-        assert cfg["digests"][0]["media_policy"] == "flush_then_send"
-
+    def test_max_messages_floor(self) -> None:
+        """A max_messages of 1 makes the digest a no-op — the floor is 2."""
         with pytest.raises(vol.Invalid):
             _validate(
                 {
@@ -99,7 +97,7 @@ class TestDigestSchema:
                         {
                             "name": "x",
                             "target_service": "notify.a",
-                            "media_policy": "weirdmode",
+                            "max_messages": 1,
                         }
                     ]
                 }
@@ -120,8 +118,8 @@ class TestDigestSchema:
                         "separator": " | ",
                         "header": "Updates:",
                         "title_mode": "join",
+                        "title_separator": " • ",
                         "dedupe": True,
-                        "media_policy": "drop",
                     }
                 ]
             }
@@ -130,6 +128,6 @@ class TestDigestSchema:
         assert digest["target_service_data"] == {"target": "120@g.us"}
         assert digest["window_mode"] == "sliding"
         assert digest["title_mode"] == "join"
+        assert digest["title_separator"] == " • "
         assert digest["dedupe"] is True
         assert digest["max_buffer_seconds"] == 120
-        assert digest["media_policy"] == "drop"
