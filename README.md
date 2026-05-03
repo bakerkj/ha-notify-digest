@@ -114,6 +114,21 @@ The integration also exposes:
 Pending buffers are also flushed automatically when Home Assistant shuts down,
 so messages are not lost on restart.
 
+## Ordering caveat
+
+Buffered messages are dispatched in the order they reached the digest — strictly
+FIFO, no sorting. That arrival order isn't always the chronological order of the
+underlying events. Home Assistant fires automations concurrently, and a
+fast-reporting source (a contact sensor on a door) can land at the buffer before
+a slow-reporting source (a Z-Wave/Zigbee lock event), even if the lock event
+physically happened first. With each notification going out separately the small
+reorder is rarely visible; coalesced into one digest, it can be.
+
+If strict chronological order matters, build the message in the source
+automation rather than relying on coalescing — fire one `notify.send_message`
+with the sequence already templated, instead of relying on multiple events
+landing in the right order.
+
 ## Media
 
 The digest is text-only. The notify entity contract (`notify.send_message`)
@@ -121,6 +136,44 @@ accepts only `message:` and `title:`, so media never reaches the buffer through
 the standard path. For media in your automations, call the downstream service
 directly — `whatsapp.send_video`, `notify.<provider>` with `data:`, etc. — and
 use the digest entity only for text events.
+
+## Troubleshooting
+
+Enable debug logging to see when the buffer arms timers, deduplicates, and
+flushes:
+
+```yaml
+logger:
+  default: warning
+  logs:
+    custom_components.notify_digest: debug
+```
+
+Each digest gets its own child logger, so a busy `whatsapp_house` digest's
+output can be isolated:
+
+```yaml
+logger:
+  logs:
+    custom_components.notify_digest.whatsapp_house: debug
+```
+
+What the log lines tell you:
+
+- `flush (window): N message(s) → notify.foo` — timer fired and the digest
+  dispatched normally.
+- `flush (max_messages): …` — the buffer hit `max_messages` and forced an early
+  flush.
+- `flush (shutdown): …` — HA stopped and the listener drained the buffer.
+- `dedupe: dropping duplicate message` — `dedupe: true` matched an existing
+  entry and silently dropped this one.
+- `flush (...): downstream foo.bar failed; N message(s) lost from digest 'x': ['…', …]`
+  — the downstream service raised. The dropped message bodies are in the line
+  itself so the content is recoverable from logs.
+
+If a flush never seems to happen, check that `target_service` actually exists
+(`Developer Tools → Services`) and that nothing else is competing for the same
+notify entity name.
 
 ## Development
 
