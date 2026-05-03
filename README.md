@@ -45,6 +45,9 @@ be coalesced together (because it's all going to the same recipient) shares one
 digest — typical examples are a WhatsApp group, a Telegram chat, or a notify
 entity. Name digests after the channel they feed.
 
+> Changes to `configuration.yaml` require a Home Assistant restart. The
+> integration does not currently support reload from `Developer Tools`.
+
 ```yaml
 notify_digest:
   digests:

@@ -8,6 +8,7 @@ import asyncio
 import logging
 
 import pytest
+from homeassistant.const import EVENT_HOMEASSISTANT_STOP
 from homeassistant.setup import async_setup_component
 
 import custom_components.notify_digest as integration
@@ -161,7 +162,7 @@ async def test_shutdown_event_flushes_pending(hass, downstream_calls) -> None:
     await hass.data[DOMAIN]["x"].async_add("queued2")
     assert downstream_calls == []  # window not elapsed
 
-    hass.bus.async_fire("homeassistant_stop")
+    hass.bus.async_fire(EVENT_HOMEASSISTANT_STOP)
     await hass.async_block_till_done()
 
     assert len(downstream_calls) == 1
@@ -192,7 +193,7 @@ async def test_shutdown_flush_times_out_on_hang(hass, monkeypatch, caplog) -> No
     await hass.data[DOMAIN]["x"].async_add("queued")
 
     with caplog.at_level(logging.WARNING, logger=integration.__name__):
-        hass.bus.async_fire("homeassistant_stop")
+        hass.bus.async_fire(EVENT_HOMEASSISTANT_STOP)
         # Headroom over our 0.1s timeout. If wait_for is missing, we'd block here.
         await asyncio.sleep(0.3)
 

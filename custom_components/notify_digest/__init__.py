@@ -12,6 +12,7 @@ from typing import Any
 import voluptuous as vol
 
 from homeassistant.components.notify import DATA_COMPONENT as NOTIFY_DATA_COMPONENT
+from homeassistant.const import EVENT_HOMEASSISTANT_STOP
 from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.typing import ConfigType
@@ -200,7 +201,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
             except Exception:
                 _LOGGER.exception("shutdown: digest %r flush failed", buf.name)
 
-    hass.bus.async_listen_once("homeassistant_stop", _shutdown)
+    hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STOP, _shutdown)
 
     _LOGGER.info(
         "Notify Digest set up with %d digest(s): %s",
