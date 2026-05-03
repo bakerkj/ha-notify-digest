@@ -124,8 +124,8 @@ async def test_sliding_window_resets_timer(hass, calls) -> None:
 
     The HA test helper ``async_fire_time_changed`` fires timers within a
     relative window of *real* wall-clock time, so we can't simulate progression
-    over many seconds. Instead we assert the cancel-then-rearm behaviour
-    directly via the buffer's internal timer handle.
+    over many seconds. Instead we assert the cancel-then-rearm behaviour via
+    the public arm-counter, which increments on every fresh schedule.
     """
     buf = DigestBuffer(
         hass,
@@ -133,14 +133,13 @@ async def test_sliding_window_resets_timer(hass, calls) -> None:
         logging.getLogger("t"),
     )
     await buf.async_add("a")
-    first_handle = buf._cancel_window  # noqa: SLF001
-    assert first_handle is not None
+    assert buf.is_window_armed
+    assert buf.window_arms == 1
 
     await buf.async_add("b")
-    second_handle = buf._cancel_window  # noqa: SLF001
-    assert second_handle is not None
-    # Sliding mode: the prior timer was cancelled and replaced.
-    assert first_handle is not second_handle
+    assert buf.is_window_armed
+    # Sliding mode cancelled and re-scheduled, so the counter advanced.
+    assert buf.window_arms == 2
 
     await buf.async_flush()  # release armed timers so the test harness is satisfied
 
@@ -153,12 +152,12 @@ async def test_max_buffer_arms_independent_timer(hass, calls) -> None:
         logging.getLogger("t"),
     )
     await buf.async_add("a")
-    max_after_first = buf._cancel_max  # noqa: SLF001
-    assert max_after_first is not None
+    assert buf.is_max_buffer_armed
+    assert buf.max_buffer_arms == 1
 
     await buf.async_add("b")
-    # Sliding mode should re-arm the window timer but leave max alone.
-    assert buf._cancel_max is max_after_first  # noqa: SLF001
+    # Sliding mode re-arms the window timer but leaves max alone.
+    assert buf.max_buffer_arms == 1
 
     await buf.async_flush()
 
@@ -194,6 +193,32 @@ async def test_title_separator_configurable(hass, calls) -> None:
     await buf.async_add("b", title="T2")
     await buf.async_flush()
     assert calls[0]["data"]["title"] == "T1 • T2"
+
+
+async def test_messages_dispatched_in_arrival_order(hass, calls) -> None:
+    """Contract: buffered messages are joined in the order async_add was called.
+
+    No sorting, no priority — strictly FIFO. Pinned as an explicit test so
+    future refactors that introduce sorting/grouping fail loudly here, not
+    silently in production.
+    """
+    buf = DigestBuffer(hass, _config(), logging.getLogger("t"))
+    for msg in ("alpha", "bravo", "charlie", "delta", "echo"):
+        await buf.async_add(msg)
+    await buf.async_flush()
+    assert calls[0]["data"]["message"] == "alpha | bravo | charlie | delta | echo"
+
+
+async def test_dedupe_preserves_first_occurrence_position(hass, calls) -> None:
+    """Dedupe drops later duplicates; the first occurrence keeps its slot."""
+    buf = DigestBuffer(hass, _config(dedupe=True), logging.getLogger("t"))
+    await buf.async_add("alpha")
+    await buf.async_add("bravo")
+    await buf.async_add("alpha")  # dropped — already present
+    await buf.async_add("charlie")
+    await buf.async_add("bravo")  # dropped
+    await buf.async_flush()
+    assert calls[0]["data"]["message"] == "alpha | bravo | charlie"
 
 
 async def test_downstream_failure_logs_messages_and_drains(hass, caplog) -> None:
