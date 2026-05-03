@@ -11,7 +11,6 @@ from typing import Any
 
 from homeassistant.core import CALLBACK_TYPE, HomeAssistant, callback
 from homeassistant.helpers.event import async_call_later
-from homeassistant.util import dt as dt_util
 
 from .const import (
     MEDIA_POLICY_DROP,
@@ -46,7 +45,6 @@ class DigestConfig:
 class _Pending:
     titles: list[str] = field(default_factory=list)
     messages: list[str] = field(default_factory=list)
-    first_added_at: float = 0.0
 
 
 class DigestBuffer:
@@ -100,9 +98,7 @@ class DigestBuffer:
             await self._handle_media(message, title, data)
             return
 
-        if message is None:
-            return
-        text = str(message).strip()
+        text = message.strip()
         if not text:
             return
 
@@ -110,11 +106,8 @@ class DigestBuffer:
             self._logger.debug("dedupe: dropping duplicate message")
             return
 
-        if not self._pending.messages:
-            self._pending.first_added_at = dt_util.utcnow().timestamp()
-
         if title:
-            self._pending.titles.append(str(title))
+            self._pending.titles.append(title)
         self._pending.messages.append(text)
 
         if len(self._pending.messages) >= self._config.max_messages:
@@ -163,8 +156,14 @@ class DigestBuffer:
     async def async_flush(self, reason: str = "manual") -> None:
         """Drain the buffer and dispatch a single coalesced message downstream.
 
-        The lock guarantees that overlapping flush triggers (timer + service call,
-        for example) don't both fire the downstream service with split state.
+        The lock is held for the entire flush, including the downstream call.
+        That serializes concurrent flush triggers — without it, two flushes on a
+        slow downstream could race and arrive out of order. The cost is that a
+        slow downstream backs up subsequent flushes, but ordering is preserved.
+
+        On downstream failure, the buffered message bodies are logged before the
+        exception propagates, so the content is recoverable from logs even
+        though the buffer was already drained at this point.
         """
         async with self._flush_lock:
             self._cancel_timers()
@@ -173,25 +172,38 @@ class DigestBuffer:
             pending = self._pending
             self._pending = _Pending()
 
-        title = self._render_title(pending.titles)
-        message = self._render_message(pending.messages)
+            title = self._render_title(pending.titles)
+            message = self._render_message(pending.messages)
 
-        domain, service = self._config.target_service.split(".", 1)
-        service_data: dict[str, Any] = dict(self._config.target_service_data)
-        service_data["message"] = message
-        if title:
-            service_data["title"] = title
+            domain, service = self._config.target_service.split(".", 1)
+            service_data: dict[str, Any] = dict(self._config.target_service_data)
+            service_data["message"] = message
+            if title:
+                service_data["title"] = title
 
-        self._logger.debug(
-            "flush (%s): %d message(s) → %s.%s",
-            reason,
-            len(pending.messages),
-            domain,
-            service,
-        )
-        await self._hass.services.async_call(
-            domain, service, service_data, blocking=True
-        )
+            self._logger.debug(
+                "flush (%s): %d message(s) → %s.%s",
+                reason,
+                len(pending.messages),
+                domain,
+                service,
+            )
+            try:
+                await self._hass.services.async_call(
+                    domain, service, service_data, blocking=True
+                )
+            except Exception:
+                self._logger.exception(
+                    "flush (%s): downstream %s.%s failed; "
+                    "%d message(s) lost from digest %r: %r",
+                    reason,
+                    domain,
+                    service,
+                    len(pending.messages),
+                    self._config.name,
+                    pending.messages,
+                )
+                raise
 
     @callback
     def _arm_window_timer(self) -> None:

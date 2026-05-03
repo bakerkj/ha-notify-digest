@@ -264,3 +264,27 @@ async def test_empty_data_dict_is_text_path(hass, calls) -> None:
     assert buf.pending_count == 1
     await buf.async_flush()
     assert calls[0]["data"]["message"] == "hi"
+
+
+async def test_downstream_failure_logs_messages_and_drains(hass, caplog) -> None:
+    """A downstream that raises: the exception propagates, the buffer is drained,
+    and the lost message bodies are logged so they're recoverable."""
+
+    async def _failing(_call: Any) -> None:
+        raise RuntimeError("downstream broken")
+
+    hass.services.async_register("notify", "sink", _failing)
+
+    test_logger = logging.getLogger("test_digest_failure")
+    test_logger.propagate = True
+    buf = DigestBuffer(hass, _config(), test_logger)
+    await buf.async_add("important1")
+    await buf.async_add("important2")
+
+    with caplog.at_level(logging.ERROR, logger="test_digest_failure"):
+        with pytest.raises(Exception):
+            await buf.async_flush()
+
+    assert "important1" in caplog.text
+    assert "important2" in caplog.text
+    assert buf.pending_count == 0
