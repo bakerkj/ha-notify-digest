@@ -1,6 +1,6 @@
 [project]
 name = "ha-notify-digest"
-version = "0.0.2"
+version = "0.0.1"
 description = "Home Assistant integration that coalesces notifications within a time window into a single digest message before forwarding to a downstream notify service."
 requires-python = ">=3.14.2"
 dependencies = []
