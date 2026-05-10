@@ -7,8 +7,12 @@
   "iot_class": "calculated",
   "documentation": "https://github.com/bakerkj/ha-notify-digest",
   "issue_tracker": "https://github.com/bakerkj/ha-notify-digest/issues",
-  "codeowners": ["@bakerkj"],
-  "dependencies": ["notify"],
+  "codeowners": [
+    "@bakerkj"
+  ],
+  "dependencies": [
+    "notify"
+  ],
   "requirements": [],
   "homeassistant": "2024.11.0"
 }

@@ -194,6 +194,19 @@ The repo uses Python 3.14, `uv`, `ruff`, `mypy`, and the same pre-commit /
 GitHub Actions stack as the author's other HA integrations (`ha-aruba-ap`,
 `ha-cpu-capacity-integration`, `ha-recorder-tuning`).
 
+Commits must follow the
+[Conventional Commits](https://www.conventionalcommits.org/) spec —
+release-please uses commit prefixes (`feat:`, `fix:`, etc.) to drive version
+bumps. Install the pre-commit hooks **including the commit-msg hook** (the
+default `pre-commit install` only wires up pre-commit-stage hooks):
+
+```
+uvx pre-commit install --hook-type pre-commit --hook-type commit-msg
+```
+
+Without `--hook-type commit-msg`, malformed commit messages won't be caught
+locally — CI (`Commitlint` workflow) will still reject them.
+
 ## License
 
 Copyright © 2026 Kenneth Baker. All rights reserved.
