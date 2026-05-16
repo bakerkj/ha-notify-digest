@@ -26,6 +26,11 @@
           "path": "custom_components/notify_digest/manifest.json",
           "jsonpath": "$.version"
         },
+        {
+          "type": "toml",
+          "path": "uv.lock",
+          "jsonpath": "$.package[?(@.name.value=='ha-notify-digest')].version"
+        },
         "pyproject.toml"
       ]
     }
