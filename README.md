@@ -185,23 +185,23 @@ notify entity name.
 ## Development
 
 ```bash
-make venv      # uv sync --all-groups
-make test      # uv run pytest tests/ -v
-make lint      # uv run pre-commit run --all-files
+uv sync --all-groups      # set up the dev environment
+uv run pytest tests/ -v   # run tests
+uvx prek run --all-files  # run lint/format hooks
 ```
 
-The repo uses Python 3.14, `uv`, `ruff`, `mypy`, and the same pre-commit /
-GitHub Actions stack as the author's other HA integrations (`ha-aruba-ap`,
+The repo uses Python 3.14, `uv`, `ruff`, `mypy`, and the same prek / GitHub
+Actions stack as the author's other HA integrations (`ha-aruba-ap`,
 `ha-cpu-capacity-integration`, `ha-recorder-tuning`).
 
 Commits must follow the
 [Conventional Commits](https://www.conventionalcommits.org/) spec —
 release-please uses commit prefixes (`feat:`, `fix:`, etc.) to drive version
-bumps. Install the pre-commit hooks **including the commit-msg hook** (the
-default `pre-commit install` only wires up pre-commit-stage hooks):
+bumps. Install the hooks **including the commit-msg hook** (the default
+`prek install` only wires up pre-commit-stage hooks):
 
 ```
-uvx pre-commit install --hook-type pre-commit --hook-type commit-msg
+uvx prek install --overwrite --hook-type pre-commit --hook-type commit-msg
 ```
 
 Without `--hook-type commit-msg`, malformed commit messages won't be caught
