@@ -9,7 +9,6 @@ import logging
 from typing import Any
 
 import voluptuous as vol
-
 from homeassistant.components.notify import DATA_COMPONENT as NOTIFY_DATA_COMPONENT
 from homeassistant.const import EVENT_HOMEASSISTANT_STOP
 from homeassistant.core import HomeAssistant, ServiceCall
