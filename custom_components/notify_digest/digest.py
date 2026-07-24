@@ -147,8 +147,8 @@ class DigestBuffer:
         When the buffer hits ``max_messages``, the flush is dispatched as a
         background task rather than awaited — so the caller's automation is
         never blocked on a slow downstream. Errors in the dispatched flush are
-        already logged inside ``async_flush``; we swallow them here to avoid
-        an unhandled-task warning.
+        already logged inside ``async_flush``; a done-callback retrieves the
+        result to avoid an unhandled-task warning.
         """
         text = message.strip()
         if not text:
@@ -168,22 +168,27 @@ class DigestBuffer:
                 "max_messages reached (%d) — scheduling flush",
                 self._config.max_messages,
             )
-            self._hass.async_create_task(
-                self._flush_swallow_errors(reason="max_messages"),
+            task = self._hass.async_create_task(
+                self.async_flush(reason="max_messages"),
                 name=f"notify_digest_{self._config.name}_max_flush",
             )
+            task.add_done_callback(self._on_background_flush_done)
             return
 
         self._arm_window_timer()
         self._arm_max_buffer_timer()
 
-    async def _flush_swallow_errors(self, reason: str) -> None:
-        """Wrapper for fire-and-forget flushes. Errors are already logged
-        inside async_flush; suppressed here to avoid unhandled-task noise."""
-        try:
-            await self.async_flush(reason=reason)
-        except Exception:
-            pass
+    @callback
+    def _on_background_flush_done(self, task: asyncio.Task[None]) -> None:
+        """Retrieve the result of a fire-and-forget flush.
+
+        A downstream failure is already logged (and re-raised) inside
+        async_flush; retrieving the exception here marks it as handled so
+        asyncio doesn't emit a spurious 'Task exception was never retrieved'
+        warning. Cancellation is expected on shutdown and needs no handling.
+        """
+        if not task.cancelled():
+            task.exception()
 
     async def async_flush(self, reason: str = "manual") -> None:
         """Drain the buffer and dispatch a single coalesced message downstream.
