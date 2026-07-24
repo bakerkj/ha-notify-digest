@@ -4,32 +4,32 @@
 
 from __future__ import annotations
 
-from datetime import timedelta
 import logging
+from datetime import timedelta
 from typing import Any
 
 import pytest
+from homeassistant.util import dt as dt_util
 from pytest_homeassistant_custom_component.common import async_fire_time_changed
 
 from custom_components.notify_digest.digest import DigestBuffer, DigestConfig
-from homeassistant.util import dt as dt_util
 
 
 def _config(**overrides: Any) -> DigestConfig:
-    base: dict[str, Any] = dict(
-        name="test",
-        target_service="notify.sink",
-        target_service_data={},
-        window_seconds=10.0,
-        max_messages=5,
-        max_buffer_seconds=None,
-        window_mode="tumbling",
-        separator=" | ",
-        header="",
-        title_mode="first",
-        title_separator=" / ",
-        dedupe=False,
-    )
+    base: dict[str, Any] = {
+        "name": "test",
+        "target_service": "notify.sink",
+        "target_service_data": {},
+        "window_seconds": 10.0,
+        "max_messages": 5,
+        "max_buffer_seconds": None,
+        "window_mode": "tumbling",
+        "separator": " | ",
+        "header": "",
+        "title_mode": "first",
+        "title_separator": " / ",
+        "dedupe": False,
+    }
     base.update(overrides)
     return DigestConfig(**base)
 
@@ -275,9 +275,39 @@ async def test_downstream_failure_logs_messages_and_drains(hass, caplog) -> None
     await buf.async_add("important1")
     await buf.async_add("important2")
 
-    with caplog.at_level(logging.ERROR, logger="test_digest_failure"):
-        with pytest.raises(RuntimeError, match="downstream broken"):
-            await buf.async_flush()
+    with (
+        caplog.at_level(logging.ERROR, logger="test_digest_failure"),
+        pytest.raises(RuntimeError, match="downstream broken"),
+    ):
+        await buf.async_flush()
+
+    assert "important1" in caplog.text
+    assert "important2" in caplog.text
+    assert buf.pending_count == 0
+
+
+async def test_max_messages_background_flush_failure_is_handled(hass, caplog) -> None:
+    """A downstream failure on the fire-and-forget max_messages flush must not
+    propagate to the caller, must drain the buffer, and must log the lost
+    bodies — while leaving no unretrieved task exception behind."""
+
+    async def _failing(_call: Any) -> None:
+        raise RuntimeError("downstream broken")
+
+    hass.services.async_register("notify", "sink", _failing)
+
+    test_logger = logging.getLogger("test_digest_bg_failure")
+    test_logger.propagate = True
+    buf = DigestBuffer(hass, _config(max_messages=2), test_logger)
+
+    with caplog.at_level(logging.ERROR, logger="test_digest_bg_failure"):
+        await buf.async_add("important1")
+        # Second add hits the threshold and dispatches the flush as a background
+        # task. The caller must return normally even though the flush will fail.
+        await buf.async_add("important2")
+        # Let the background flush run to completion; its failure is retrieved by
+        # the done-callback, so this must not raise.
+        await hass.async_block_till_done()
 
     assert "important1" in caplog.text
     assert "important2" in caplog.text
