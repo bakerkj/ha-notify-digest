@@ -1,18 +1,17 @@
 {
   "domain": "notify_digest",
   "name": "Notify Digest",
-  "version": "0.0.6",
-  "config_flow": false,
-  "integration_type": "service",
-  "iot_class": "calculated",
-  "documentation": "https://github.com/bakerkj/ha-notify-digest",
-  "issue_tracker": "https://github.com/bakerkj/ha-notify-digest/issues",
   "codeowners": [
     "@bakerkj"
   ],
+  "config_flow": false,
   "dependencies": [
     "notify"
   ],
+  "documentation": "https://github.com/bakerkj/ha-notify-digest",
+  "integration_type": "service",
+  "iot_class": "calculated",
+  "issue_tracker": "https://github.com/bakerkj/ha-notify-digest/issues",
   "requirements": [],
-  "homeassistant": "2024.11.0"
+  "version": "0.0.6"
 }
