@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.0.7](https://github.com/bakerkj/ha-notify-digest/compare/v0.0.6...v0.0.7) (2026-07-26)
+
+
+### Miscellaneous Chores
+
+* **deps:** update anthropics/claude-code-action action to v1.0.183 ([#73](https://github.com/bakerkj/ha-notify-digest/issues/73)) ([6a27185](https://github.com/bakerkj/ha-notify-digest/commit/6a27185d5d76627a6df21cc144b3746f1b590f7f))
+
+
+### Continuous Integration
+
+* add hassfest manifest validation ([#75](https://github.com/bakerkj/ha-notify-digest/issues/75)) ([05e6d9f](https://github.com/bakerkj/ha-notify-digest/commit/05e6d9fe17f9d73431c20c5e86f51b552eab682a))
+
 ## [0.0.6](https://github.com/bakerkj/ha-notify-digest/compare/v0.0.5...v0.0.6) (2026-07-24)
 
 
