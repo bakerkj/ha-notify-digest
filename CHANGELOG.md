@@ -1,5 +1,50 @@
 # Changelog
 
+## [0.0.8](https://github.com/bakerkj/ha-notify-digest/compare/v0.0.7...v0.0.8) (2026-09-05)
+
+
+### Bug Fixes
+
+* **pre-commit:** set default_stages so hooks skip commit-msg by default ([#85](https://github.com/bakerkj/ha-notify-digest/issues/85)) ([67ae79e](https://github.com/bakerkj/ha-notify-digest/commit/67ae79e9827b870023e7bd91c00dc3d6f609a1dc))
+* scope dev-tooling auto-merge by depType ([#83](https://github.com/bakerkj/ha-notify-digest/issues/83)) ([93327a7](https://github.com/bakerkj/ha-notify-digest/commit/93327a759bf7adfede9e8b75e35a60281bb0f0c3))
+
+
+### Miscellaneous Chores
+
+* **deps:** pin uv to 0.12.2 ([#84](https://github.com/bakerkj/ha-notify-digest/issues/84)) ([878d165](https://github.com/bakerkj/ha-notify-digest/commit/878d16576c3b0fb0b41686e22fd140fd5ba529e3))
+* **deps:** update anthropics/claude-code-action action to v1.0.184 ([#86](https://github.com/bakerkj/ha-notify-digest/issues/86)) ([4cafd11](https://github.com/bakerkj/ha-notify-digest/commit/4cafd1192271b7912ef8aa33f8889a793e3556de))
+* **deps:** update anthropics/claude-code-action action to v1.0.190 ([#94](https://github.com/bakerkj/ha-notify-digest/issues/94)) ([da0ac3c](https://github.com/bakerkj/ha-notify-digest/commit/da0ac3c7ca913d292de17ca43f0d5e8d3cdb81e6))
+* **deps:** update anthropics/claude-code-action action to v1.0.195 ([#97](https://github.com/bakerkj/ha-notify-digest/issues/97)) ([5744478](https://github.com/bakerkj/ha-notify-digest/commit/574447880f608c83ac1ee1fb11adce60a90c0a6d))
+* **deps:** update anthropics/claude-code-action action to v1.0.205 ([#99](https://github.com/bakerkj/ha-notify-digest/issues/99)) ([b1400c6](https://github.com/bakerkj/ha-notify-digest/commit/b1400c66d06b40718d87d0db57472c1f938a2dde))
+* **deps:** update anthropics/claude-code-action action to v1.0.211 ([#105](https://github.com/bakerkj/ha-notify-digest/issues/105)) ([72a4ba8](https://github.com/bakerkj/ha-notify-digest/commit/72a4ba84b3a18f59d7d1d497288335a860abd49c))
+* **deps:** update anthropics/claude-code-action action to v1.0.212 ([#106](https://github.com/bakerkj/ha-notify-digest/issues/106)) ([280bf32](https://github.com/bakerkj/ha-notify-digest/commit/280bf327233019ab23300cb1c19c369f581a7971))
+* **deps:** update astral-sh/setup-uv action to v10 ([#92](https://github.com/bakerkj/ha-notify-digest/issues/92)) ([20b7d5c](https://github.com/bakerkj/ha-notify-digest/commit/20b7d5c0cba6af3b296a2542a46e055822a9af01))
+* **deps:** update dependency uv to ==0.12.* ([#78](https://github.com/bakerkj/ha-notify-digest/issues/78)) ([acc8b65](https://github.com/bakerkj/ha-notify-digest/commit/acc8b65cf55401f34ac0000988b42fd85faa93fa))
+* **deps:** update dependency uv to v0.12.10 ([#107](https://github.com/bakerkj/ha-notify-digest/issues/107)) ([1b9691b](https://github.com/bakerkj/ha-notify-digest/commit/1b9691bb51f0426a5c5cc3a828d11ec7a96335b7))
+* **deps:** update dependency uv to v0.12.3 ([#91](https://github.com/bakerkj/ha-notify-digest/issues/91)) ([f10acc3](https://github.com/bakerkj/ha-notify-digest/commit/f10acc3d78a37e69d1d03598e7375de7761fe838))
+* **deps:** update dependency uv to v0.12.4 ([#93](https://github.com/bakerkj/ha-notify-digest/issues/93)) ([b92f96b](https://github.com/bakerkj/ha-notify-digest/commit/b92f96b2708b6827e4251e6058520afe1433d4a0))
+* **deps:** update dependency uv to v0.12.5 ([#95](https://github.com/bakerkj/ha-notify-digest/issues/95)) ([fb2ee5e](https://github.com/bakerkj/ha-notify-digest/commit/fb2ee5eec4c1096a985868de5ae1127b64f1dcff))
+* **deps:** update dependency uv to v0.12.7 ([#100](https://github.com/bakerkj/ha-notify-digest/issues/100)) ([c67702b](https://github.com/bakerkj/ha-notify-digest/commit/c67702b9107ea7370ef5610c3a03ed3c7915f93a))
+* **deps:** update dependency uv to v0.12.8 ([#102](https://github.com/bakerkj/ha-notify-digest/issues/102)) ([8d30f80](https://github.com/bakerkj/ha-notify-digest/commit/8d30f80ab0806490f4b3c3e7f98bd87305782500))
+* **deps:** update dependency uv to v0.12.9 ([#103](https://github.com/bakerkj/ha-notify-digest/issues/103)) ([ccbfb8b](https://github.com/bakerkj/ha-notify-digest/commit/ccbfb8bd001f4c98a59832a85cbdf0fee21d9f34))
+* **deps:** update github-actions ([#87](https://github.com/bakerkj/ha-notify-digest/issues/87)) ([c89194e](https://github.com/bakerkj/ha-notify-digest/commit/c89194e927ad2f2d422791ce6d6006e0a4f67528))
+* **deps:** update github-actions ([#96](https://github.com/bakerkj/ha-notify-digest/issues/96)) ([da09b79](https://github.com/bakerkj/ha-notify-digest/commit/da09b793d965810e7687c5f0c615995d17d724e0))
+* **deps:** update home-assistant/actions digest to ab22029 ([#76](https://github.com/bakerkj/ha-notify-digest/issues/76)) ([18c7290](https://github.com/bakerkj/ha-notify-digest/commit/18c72907daf7bde942d25547678f0d268344bda3))
+* **deps:** update j178/prek-action action to v3 ([#79](https://github.com/bakerkj/ha-notify-digest/issues/79)) ([d8b216a](https://github.com/bakerkj/ha-notify-digest/commit/d8b216a92a75aa119b595d88447b064c7cf1856c))
+* **deps:** update pre-commit hook astral-sh/ruff-pre-commit to v0.16.1 ([#77](https://github.com/bakerkj/ha-notify-digest/issues/77)) ([46a91fd](https://github.com/bakerkj/ha-notify-digest/commit/46a91fd166d9fa48430d9bdb637371ed3d631691))
+* **deps:** update pre-commit hook astral-sh/ruff-pre-commit to v0.16.2 ([#88](https://github.com/bakerkj/ha-notify-digest/issues/88)) ([be22df7](https://github.com/bakerkj/ha-notify-digest/commit/be22df7154534417827114ffbcdd73cf463f1352))
+* **deps:** update pre-commit hook astral-sh/ruff-pre-commit to v0.16.3 ([#90](https://github.com/bakerkj/ha-notify-digest/issues/90)) ([9df6f07](https://github.com/bakerkj/ha-notify-digest/commit/9df6f07b89d499e5f093aff64624c20d9e4d3e70))
+* **deps:** update pre-commit hook astral-sh/ruff-pre-commit to v0.16.4 ([#98](https://github.com/bakerkj/ha-notify-digest/issues/98)) ([f15b51b](https://github.com/bakerkj/ha-notify-digest/commit/f15b51b78762523454b6969c53c8b95309fa8997))
+* **deps:** update pre-commit hook astral-sh/ruff-pre-commit to v0.16.5 ([#101](https://github.com/bakerkj/ha-notify-digest/issues/101)) ([814642c](https://github.com/bakerkj/ha-notify-digest/commit/814642c919edcfa54d1c6e7ef07c22dc7d8e5d8e))
+* **deps:** update pre-commit hook astral-sh/ruff-pre-commit to v0.16.6 ([#104](https://github.com/bakerkj/ha-notify-digest/issues/104)) ([4c41c21](https://github.com/bakerkj/ha-notify-digest/commit/4c41c21076a1e23f307488fb78b0445b736f0dd7))
+* **deps:** update pre-commit hook python-jsonschema/check-jsonschema to v0.38.0 ([#89](https://github.com/bakerkj/ha-notify-digest/issues/89)) ([48abc78](https://github.com/bakerkj/ha-notify-digest/commit/48abc78bb47b0e5c49312703cdc2ed4bd7e29ba0))
+
+
+### Continuous Integration
+
+* enable renovate auto-merge for CI-only updates ([#81](https://github.com/bakerkj/ha-notify-digest/issues/81)) ([a28dc7d](https://github.com/bakerkj/ha-notify-digest/commit/a28dc7d610b9acb85b130435a0b868a6a9b33c6c))
+* pin automergeStrategy to squash ([#82](https://github.com/bakerkj/ha-notify-digest/issues/82)) ([be8da7f](https://github.com/bakerkj/ha-notify-digest/commit/be8da7f1bce50f32f5752482f919f84d815cb5ed))
+
 ## [0.0.7](https://github.com/bakerkj/ha-notify-digest/compare/v0.0.6...v0.0.7) (2026-07-26)
 
 
