@@ -5,7 +5,12 @@
 from __future__ import annotations
 
 import pytest
-import voluptuous as vol
+
+try:
+    # The library CONFIG_SCHEMA is built with, so this is the Invalid it raises.
+    import probatio as vol
+except ImportError:  # HA < 2026.9
+    import voluptuous as vol  # type: ignore[no-redef]
 
 from custom_components.notify_digest import CONFIG_SCHEMA, DOMAIN
 
