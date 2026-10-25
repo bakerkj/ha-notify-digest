@@ -8,7 +8,6 @@ import asyncio
 import logging
 from typing import Any
 
-import voluptuous as vol
 from homeassistant.components.notify import DATA_COMPONENT as NOTIFY_DATA_COMPONENT
 from homeassistant.const import EVENT_HOMEASSISTANT_STOP
 from homeassistant.core import HomeAssistant, ServiceCall
@@ -17,6 +16,13 @@ from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.reload import async_integration_yaml_config
 from homeassistant.helpers.service import async_register_admin_service
 from homeassistant.helpers.typing import ConfigType
+
+try:
+    # HA 2026.9 replaced voluptuous with the API-compatible probatio and types
+    # schemas as probatio; build ours with whichever this HA ships.
+    import probatio as vol
+except ImportError:  # HA < 2026.9
+    import voluptuous as vol  # type: ignore[no-redef]
 
 from .const import (
     ATTR_DIGEST_NAME,
